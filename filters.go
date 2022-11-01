@@ -1,20 +1,20 @@
 package main
 
 import (
-    "encoding/json"
-    "fmt"
-    "os"
+	"encoding/json"
+	"fmt"
+	"os"
 )
 
 type Filter struct {
-	Predicates []interface{} `json:"-"`// Filter | Predicate
-	Operator string `json:"operator"` // and | or
+	Predicates    []interface{}     `json:"-"`        // Filter | Predicate
+	Operator      string            `json:"operator"` // and | or
 	RawPredicates []json.RawMessage `json:"predicates"`
 }
 
 type Predicate struct {
 	Column string `json:"column"`
-	Test string `json:"test"` // is_empty | is_not_empty
+	Test   string `json:"test"` // is_empty | is_not_empty
 }
 
 func renameQuery(q *Filter, oldCol string, newCol string) *Filter {
@@ -31,15 +31,14 @@ func renameQuery(q *Filter, oldCol string, newCol string) *Filter {
 
 func renameQueryHelper(q interface{}, oldCol string, newCol string) interface{} {
 	switch query := q.(type) {
-		case *Filter:
-			return renameFilter(query, oldCol, newCol)
-		case *Predicate:
-			return renamePredicate(query, oldCol, newCol)
-		default:
-			panic("unknown predicate type")
+	case *Filter:
+		return renameFilter(query, oldCol, newCol)
+	case *Predicate:
+		return renamePredicate(query, oldCol, newCol)
+	default:
+		panic("unknown predicate type")
 	}
 }
-
 
 func renameFilter(q *Filter, oldCol string, newCol string) *Filter {
 	newQ := Filter{
@@ -55,7 +54,7 @@ func renamePredicate(p *Predicate, oldCol string, newCol string) *Predicate {
 	if p.Column == oldCol {
 		return &Predicate{
 			Column: newCol,
-			Test: p.Test,
+			Test:   p.Test,
 		}
 	} else {
 		return p
@@ -87,57 +86,56 @@ func main() {
 }`
 	var input Filter
 	if err := json.Unmarshal([]byte(str), &input); err != nil {
-        panic(err)
-    }
+		panic(err)
+	}
 	output := renameQuery(&input, "Address", "Line 1")
 
 	fmt.Println("Output:")
 	enc := json.NewEncoder(os.Stdout)
-    enc.Encode(output)
+	enc.Encode(output)
 }
 
-// Helpers for de/serializing polymorphic JSON 
+// Helpers for de/serializing polymorphic JSON
 func (f *Filter) UnmarshalJSON(b []byte) error {
-    type filter Filter
-    err := json.Unmarshal(b, (*filter)(f))
-    if err != nil {
-        return err
-    }
+	type filter Filter
+	err := json.Unmarshal(b, (*filter)(f))
+	if err != nil {
+		return err
+	}
 
-    for _, raw := range f.RawPredicates {
-        var p map[string]interface{}
-        err = json.Unmarshal(raw, &p)
-        if err != nil {
+	for _, raw := range f.RawPredicates {
+		var p map[string]interface{}
+		err = json.Unmarshal(raw, &p)
+		if err != nil {
 			panic(err)
-        }
+		}
 
-        var i interface{}
+		var i interface{}
 		if _, ok := p["column"]; ok {
 			i = &Predicate{}
 		} else {
 			i = &Filter{}
-        }
-        err = json.Unmarshal(raw, i)
-        if err != nil {
-            panic(err)
-        }
-        f.Predicates = append(f.Predicates, i)
-    }
-    return nil
+		}
+		err = json.Unmarshal(raw, i)
+		if err != nil {
+			panic(err)
+		}
+		f.Predicates = append(f.Predicates, i)
+	}
+	return nil
 }
 
 func (f *Filter) MarshalJSON() ([]byte, error) {
-    type filter Filter
+	type filter Filter
 	if f.Predicates != nil {
 		f.RawPredicates = nil
 		for _, p := range f.Predicates {
 			b, err := json.Marshal(p)
-            if err != nil {
-                panic(err)
-            }
-            f.RawPredicates = append(f.RawPredicates, b)
+			if err != nil {
+				panic(err)
+			}
+			f.RawPredicates = append(f.RawPredicates, b)
 		}
 	}
 	return json.Marshal((*filter)(f))
 }
-
